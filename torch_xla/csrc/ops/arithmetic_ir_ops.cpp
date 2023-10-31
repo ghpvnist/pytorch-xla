@@ -10,7 +10,6 @@ namespace torch_xla {
 
 torch::lazy::NodePtr operator+(const torch::lazy::Value& node1,
                                const torch::lazy::Value& node2) {
-  std::cout << "torch::lazy::NodePtr operator+\n";
   auto lower_fn = [](const XlaNode& node,
                      LoweringContext* loctx) -> XlaOpVector {
     xla::XlaOp op0 = loctx->GetOutputOp(node.operand(0));
@@ -39,7 +38,6 @@ torch::lazy::NodePtr operator-(const torch::lazy::Value& node1,
 
 torch::lazy::NodePtr operator*(const torch::lazy::Value& node1,
                                const torch::lazy::Value& node2) {
-  std::cout << "torch::lazy::NodePtr operator *\n";
   auto lower_fn = [](const XlaNode& node,
                      LoweringContext* loctx) -> XlaOpVector {
     xla::XlaOp op0 = loctx->GetOutputOp(node.operand(0));

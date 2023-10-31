@@ -110,9 +110,7 @@ struct BatchInput {
 // Adds a batch dimension of size 1 if the input tensor doesn't have a batch
 // dimension.
 BatchInput CreateBatchInput(xla::XlaOp input, int64_t spatial_dim_count) {
-  std::cout << "CreateBatchInput\n";
   const xla::Shape& input_shape = ShapeHelper::ShapeOfXlaOp(input);
-  std::cout << "\tshape: " << xla::ShapeUtil::HumanString(input_shape) << "\n";
   int64_t rank = input_shape.rank();
   XLA_CHECK(rank == spatial_dim_count + 1 || rank == spatial_dim_count + 2)
       << "Input must be a " << spatial_dim_count + 1 << "-D or "
@@ -184,7 +182,6 @@ xla::PaddingConfig MakeXlaPaddingConfig(absl::Span<const int64_t> padding,
   return padding_config;
 }
 
-// xla::XlaOp CreatePoolIndicesIota(const xla::Shape& input_shape,
 xla::XlaOp CreatePoolIndicesIota(xla::XlaOp input, xla::XlaBuilder* builder) {
   const xla::Shape& input_shape = ShapeHelper::ShapeOfXlaOp(input);
   int64_t spatial_input_elements = 1;
@@ -197,13 +194,10 @@ xla::XlaOp CreatePoolIndicesIota(xla::XlaOp input, xla::XlaBuilder* builder) {
       xla::ShapeUtil::MakeShape(kIndicesType, {spatial_input_elements}), 0);
   xla::XlaOp reshaped_iota =
       xla::Reshape(iota, input_shape.dimensions().subspan(2));
-  // return xla::Broadcast(reshaped_iota, input_shape.dimensions().subspan(0,
-  // 2));
   return XlaHelpers::DynamicUnboundedBroadcast(reshaped_iota, input, {0, 1});
 }
 
 xla::XlaOp ComputeNoOverlapMaxPoolIndices(
-    // const xla::Shape& input_shape, xla::XlaOp padded_input,
     xla::XlaOp input, xla::XlaOp padded_input, xla::XlaOp pool_result,
     const xla::PaddingConfig& padding_config,
     const PoolingOpAttributes& pooling_op_attributes) {
@@ -229,7 +223,6 @@ xla::XlaOp ComputeNoOverlapMaxPoolIndices(
   std::iota(padded_input_shape_dimensions.begin(),
             padded_input_shape_dimensions.end(), 0);
   xla::XlaOp invalid_iota =
-      // xla::Broadcast(invalid_iota_init, padded_input_shape.dimensions());
       XlaHelpers::DynamicUnboundedBroadcast(invalid_iota_init, padded_input,
                                             padded_input_shape_dimensions);
   xla::XlaOp scattered_indices = xla::Select(
@@ -274,16 +267,10 @@ bool IsOverlapping(const PoolingOpAttributes& pooling_op_attributes) {
 }
 
 xla::XlaOp ComputeMaxPoolIndices(
-    // const xla::Shape& input_shape, xla::XlaOp padded_input,
     xla::XlaOp input, xla::XlaOp padded_input, xla::XlaOp pool_result,
     const xla::PaddingConfig& padding_config,
     const PoolingOpAttributes& pooling_op_attributes) {
   const xla::Shape& input_shape = ShapeHelper::ShapeOfXlaOp(input);
-  XlaHelpers::PrintXlaOp(input, "input");
-  XlaHelpers::PrintXlaOp(padded_input, "padded_input");
-  XlaHelpers::PrintXlaOp(pool_result, "pool_result");
-  std::cout << pooling_op_attributes.kernel_size << "\n";
-  std::cout << pooling_op_attributes.stride << "\n";
   if (!IsOverlapping(pooling_op_attributes)) {
     // The algorithm in ComputeNoOverlapMaxPoolIndices() only works if reduce
     // windows do not overlap. If they do, the reduce-window done on the indices
@@ -299,12 +286,9 @@ xla::XlaOp ComputeMaxPoolIndices(
   // be executed if the caller actually uses the indices, and only if the reduce
   // windows overlap.
   xla::XlaOp iota = CreatePoolIndicesIota(input, padded_input.builder());
-  XlaHelpers::PrintXlaOp(iota, "iota");
   xla::XlaOp padded_iota =
       xla::Pad(iota, xla::MaxValue(padded_input.builder(), kIndicesType),
                padding_config);
-  XlaHelpers::PrintXlaOp(padded_iota, "padded_iota");
-  XlaHelpers::PrintXlaOp(pool_result, "pool_result");
 
   const xla::Shape& pool_result_shape = ShapeHelper::ShapeOfXlaOp(pool_result);
   int64_t pool_elements = pool_result_shape.is_unbounded_dynamic()
@@ -342,10 +326,6 @@ xla::XlaOp ComputeMaxPoolIndices(
         xla::ShapeUtil::MakeShape(kIndicesType, {}));
     auto scalar_zero = xla::Zero(padded_input.builder(), kIndicesType);
     auto reshaped_pool_elements_op = xla::Reshape(pool_elements_op, {1});
-    // auto reshaped_pool_elements_op = xla::CustomCall(
-    //     padded_input.builder(), "stablehlo.dynamic_reshape",
-    //     {pool_elements_op, xla::One(padded_input.builder(), kIndicesType)},
-    //     xla::ShapeUtil::MakeShape(kIndicesType, {1}));
     auto broadcasted_zero_op = xla::CustomCall(
         padded_input.builder(), "stablehlo.dynamic_broadcast_in_dim",
         {scalar_zero, reshaped_pool_elements_op},
@@ -371,11 +351,9 @@ xla::XlaOp ComputeMaxPoolIndices(
     xla::XlaOp input_slice =
         xla::DynamicSlice(init[input_id], slice_indices.input_indices,
                           pooling_op_attributes.kernel_size);
-    XlaHelpers::PrintXlaOp(input_slice, "input_slice");
     xla::XlaOp iota_slice =
         xla::DynamicSlice(init[iota_id], slice_indices.input_indices,
                           pooling_op_attributes.kernel_size);
-    XlaHelpers::PrintXlaOp(iota_slice, "iota_slice");
     std::vector<int64_t> result_slice_sizes(
         pooling_op_attributes.kernel_size.size(), 1);
     xla::XlaOp pool_result_slice = xla::DynamicSlice(
@@ -386,32 +364,26 @@ xla::XlaOp ComputeMaxPoolIndices(
     xla::XlaComputation scatter =
         xla::CreateScalarMaxComputation(input_shape.element_type(), builder);
     xla::XlaOp init_value = xla::MinValue(builder, input_shape.element_type());
-    XlaHelpers::PrintXlaOp(init_value, "init_value");
     xla::XlaOp scattered_pool = xla::SelectAndScatter(
         input_slice, select, pooling_op_attributes.kernel_size,
         pooling_op_attributes.stride, xla::Padding::kValid, pool_result_slice,
         init_value, scatter);
 
-    XlaHelpers::PrintXlaOp(scattered_pool, "scattered_pool");
     xla::XlaOp invalid_iota_init = xla::MaxValue(builder, kIndicesType);
     for (auto ks : pooling_op_attributes.kernel_size) {
       XLA_CHECK(ks != kUnboundedSize);
     }
     xla::XlaOp invalid_iota =
         xla::Broadcast(invalid_iota_init, pooling_op_attributes.kernel_size);
-    XlaHelpers::PrintXlaOp(invalid_iota, "invalid_iota");
     xla::XlaOp scattered_indices = xla::Select(
         xla::Ne(scattered_pool, init_value), iota_slice, invalid_iota);
-    XlaHelpers::PrintXlaOp(scattered_indices, "scattered_indices");
     xla::XlaComputation min_computation =
         xla::CreateScalarMinComputation(kIndicesType, builder);
     xla::XlaOp index =
         xla::ReduceWindow(scattered_indices, invalid_iota_init, min_computation,
                           pooling_op_attributes.kernel_size,
                           pooling_op_attributes.stride, xla::Padding::kValid);
-    XlaHelpers::PrintXlaOp(index, "index");
     xla::XlaOp r1_index = xla::Reshape(index, {1});
-    XlaHelpers::PrintXlaOp(r1_index, "r1_index");
 
     std::vector<xla::XlaOp> results(init.begin(), init.end());
     results[counter_id] = init[counter_id] + xla::One(builder, kIndicesType);
@@ -425,13 +397,6 @@ xla::XlaOp ComputeMaxPoolIndices(
                            "ComputeMaxPoolIndices", padded_input.builder()));
 
   if (pool_result_shape.is_unbounded_dynamic()) {
-    // return xla::CustomCall(
-    //     padded_input.builder(), "stablehlo.dynamic_reshape",
-    //     {results[result_id], pool_result},
-    //     xla::ShapeUtil::MakeShape(pool_result_shape.element_type(),
-    //                               pool_result_shape.dimensions(),
-    //                               torch::lazy::ToVector<bool>(
-    //                                   pool_result_shape.dynamic_dimensions())));
     return XlaHelpers::DynamicUnboundedReshape(results[result_id], pool_result,
                                                pool_result_shape.dimensions());
   } else {
@@ -526,19 +491,15 @@ MaxPoolResult BuildMaxPoolNd(xla::XlaOp input, int64_t spatial_dim_count,
                              absl::Span<const int64_t> stride,
                              absl::Span<const int64_t> padding,
                              bool ceil_mode) {
-  std::cout << "BuildMaxPoolNd\n";
-  // CHECK(false);
   xla::XlaBuilder* builder = input.builder();
   BatchInput batch_input_info = CreateBatchInput(input, spatial_dim_count);
   const xla::Shape& input_shape =
       ShapeHelper::ShapeOfXlaOp(batch_input_info.batch_input);
-  std::cout << "\t" << xla::ShapeUtil::HumanString(input_shape) << "\n";
   xla::XlaOp init_value = xla::MinValue(builder, input_shape.element_type());
   xla::PaddingConfig padding_config = MakeXlaPaddingConfig(
       padding, input_shape, kernel_size, stride, ceil_mode);
   xla::XlaOp padded_input =
       xla::Pad(batch_input_info.batch_input, init_value, padding_config);
-  std::cout << "\tPad done\n";
   PoolingOpAttributes pooling_op_attributes =
       MakePoolingOpAttributes(/*kernel_size_attr=*/kernel_size,
                               /*stride_attr=*/stride);

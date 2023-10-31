@@ -110,9 +110,6 @@ SummationResult CreateSummation(xla::XlaOp input,
         result.result, result.rinfo.element_count.size, shape.element_type());
   }
   if (keep_reduced_dimensions) {
-    // result.result =
-    //     XlaHelpers::DynamicReshape(result.result,
-    //     result.rinfo.new_dimensions);
     result.result = XlaHelpers::DynamicUnboundedReshape(
         result.result, input, result.rinfo.new_dimensions);
   }
@@ -270,11 +267,6 @@ xla::XlaOp BuildCumulativeComputation(xla::XlaOp input, int64_t dim,
 
 xla::XlaOp BuildMean(xla::XlaOp input, absl::Span<const int64_t> dimensions,
                      bool keep_reduced_dimensions) {
-  XlaHelpers::PrintXlaOp(input, "input");
-  const xla::Shape& input_shape = ShapeHelper::ShapeOfXlaOp(input);
-  std::cout << "BuildMean" << xla::ShapeUtil::HumanString(input_shape) << "\n";
-  for (auto a : dimensions) std::cout << a << ", ";
-  std::cout << "\n";
   return CreateSummation(input, dimensions, keep_reduced_dimensions,
                          /*scale=*/true)
       .result;

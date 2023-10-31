@@ -139,7 +139,6 @@ class XlaNode : public torch::lazy::Node {
   std::string ToString() const override;
 
   void MarkDynamicDimension(uint32_t dim) {
-    std::cout << " I am called " << dim << std::endl;
     dynamic_dims_.push_back(dim);
   }
   void SetTag(const std::string& tag) { experimental_tag_ = tag; }
