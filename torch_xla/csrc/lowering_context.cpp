@@ -106,7 +106,10 @@ xla::XlaOp LoweringContext::GetParameter(
   torch::lazy::BackendData::Handle handle = data->GetHandle();
   auto it = parameters_map_.find(handle);
   if (it == parameters_map_.end()) {
-    xla::Shape shape = UnwrapXlaData(data)->shape();
+    xla::Shape shape =
+        UnwrapXlaData(
+            std::array<const torch::lazy::BackendDataPtr, 1>({data}))[0]
+            ->shape();
     for (const int dim : dynamic_dims) {
       shape.set_dynamic_dimension(dim, true);
       shape.set_dimensions(dim, kUnboundedSize);
