@@ -17,6 +17,12 @@ print(hlo_content)
 print(xm.get_stablehlo([result]))
 export_filename = "resnet18_saved_model"
 
+from torch.export import export
+from torch_xla.stablehlo import exported_program_to_stablehlo
+exported = export(model, input)
+stablehlo_program = exported_program_to_stablehlo(exported)
+stablehlo_program.save('stablehlo_dir')
+
 ### The folllowing line crashes with
 ## 2023-09-20 00:15:55.270486: F ./torch_xla/csrc/runtime/debug_macros.h:20] Non-OK-status: status.status() status: UNIMPLEMENTED: CustomCall "stablehlo.dynamic_broadcast_in_dim" is not supported to have a dynamic dimension
 ## *** Begin stack trace ***
