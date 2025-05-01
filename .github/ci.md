@@ -137,3 +137,5 @@ We use different build tools than the upstream `torch` repository due to our dep
 If you are making a breaking change to the image, bump the image version tag in `build_upstream_image.yml` first and then send a PR to `pytorch/pytorch` to update the tag on their side ([example](https://github.com/pytorch/pytorch/pull/125319)).
 
 Note: the upstream CI still relies on some legacy scripts in `.circleci` rather than our Ansible config. Don't update these without checking if they break the upstream CI first! TODO: finally delete these.
+
+test
