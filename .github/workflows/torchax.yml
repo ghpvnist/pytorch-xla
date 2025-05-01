@@ -17,8 +17,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check_relevant_changes:
+    name: Check Relevant File Changes
+    uses: ./.github/workflows/_check_relevant_changes.yml
+    with:
+      event_name: ${{ github.event_name }}
+      # For pull_request, use PR's base and head. For push, use event's before and sha.
+      base_sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+      head_sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+    secrets: inherit # Good practice, though not used by this specific reusable workflow
   torchax-cpu:
     runs-on: ubuntu-24.04
+    needs: [check_relevant_changes]
+    if: needs.check_relevant_changes.outputs.has_code_changes == 'true'
     strategy:
       matrix:
         python-version: ['3.10']
