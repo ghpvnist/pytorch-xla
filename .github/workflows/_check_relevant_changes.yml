@@ -1,0 +1,86 @@
+name: Check Relevant Changes
+
+on:
+  workflow_call:
+    inputs:
+      event_name:
+        required: true
+        type: string
+      base_sha:
+        required: true
+        type: string
+      head_sha:
+        required: true
+        type: string
+    outputs:
+      has_code_changes:
+        description: "True if non-markdown code files were changed or event is workflow_dispatch/schedule, false otherwise."
+        value: ${{ jobs.check_files.outputs.has_code_changes }}
+
+jobs:
+  check_files:
+    runs-on: ubuntu-latest
+    outputs:
+      has_code_changes: ${{ steps.perform_check.outputs.has_code_changes }}
+    steps:
+      - name: Determine if file check is necessary
+        id: pre_check
+        run: |
+          if [[ "${{ inputs.event_name }}" == "workflow_dispatch" || "${{ inputs.event_name }}" == "schedule" ]]; then
+            echo "Event is ${{ inputs.event_name }}. Assuming code changes or full run needed."
+            echo "perform_actual_check=false" >> "$GITHUB_OUTPUT"
+            echo "final_has_code_changes=true" >> "$GITHUB_OUTPUT" # For dispatch/schedule, always assume code changes
+          else
+            echo "perform_actual_check=true" >> "$GITHUB_OUTPUT"
+            echo "final_has_code_changes=" >> "$GITHUB_OUTPUT" # Will be determined by diff
+          fi
+
+      - name: Checkout code for diff
+        if: steps.pre_check.outputs.perform_actual_check == 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required to get history for diff
+
+      - name: Perform file content check
+        id: perform_check
+        # This step now sets has_code_changes directly
+        run: |
+          if [[ "${{ steps.pre_check.outputs.perform_actual_check }}" == "false" ]]; then
+            echo "Skipping actual file check for ${{ inputs.event_name }} event."
+            echo "has_code_changes=true" >> "$GITHUB_OUTPUT" # Corresponds to final_has_code_changes from pre_check
+            exit 0
+          fi
+
+          echo "Performing file check. Base SHA: ${{ inputs.base_sha }}, Head SHA: ${{ inputs.head_sha }}"
+
+          # Handle initial push to a branch where base_sha might be all zeros
+          if [[ "${{ inputs.base_sha }}" == "0000000000000000000000000000000000000000" ]]; then
+            echo "Initial push (base SHA is zeros). Assuming code changes."
+            echo "has_code_changes=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Handle cases where base and head are the same (e.g., re-run on a specific commit)
+          if [[ "${{ inputs.base_sha }}" == "${{ inputs.head_sha }}" ]]; then
+            echo "Base SHA is the same as Head SHA. No file changes in this diff. Assuming no code changes for skipping purposes."
+            echo "has_code_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Get list of changed files, ignoring renames for this check's purpose
+          git diff --name-only --no-renames ${{ inputs.base_sha }} ${{ inputs.head_sha }} > changed_files.txt
+
+          echo "Changed files (between ${{ inputs.base_sha }} and ${{ inputs.head_sha }}):"
+          cat changed_files.txt
+
+          # If grep finds any file NOT ending in .md (non-markdown), it means code changes.
+          # grep -q returns 0 (true in shell) if a match is found.
+          if grep -q -v -E '\.md$' changed_files.txt; then
+            echo "Non-markdown changes detected."
+            echo "has_code_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            # All changed files are .md, or changed_files.txt is empty (no changes in diff)
+            echo "Only markdown changes detected or no changes found in diff."
+            echo "has_code_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+        shell: bash
