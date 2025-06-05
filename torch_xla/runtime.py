@@ -87,7 +87,7 @@ def device_type() -> Optional[str]:
   Selects a default device if none has been configured
 
   Returns:
-    A string representation of the device.
+    A string representation of the device: "CPU", "TPU", etc.
   """
   pjrt_device = xu.getenv_as(xenv.PJRT_DEVICE, str)
   return pjrt_device.split('_')[0] if pjrt_device else pjrt_device
